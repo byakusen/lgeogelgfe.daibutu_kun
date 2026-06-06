@@ -105,13 +105,21 @@
     position:relative;
     transition:transform .25s;
   }
-  .face img{
+  /* 口を閉じた絵と開いた絵を、ぴったり同じ位置に重ねる（位置・大きさは動かさない＝揺れない） */
+  .face .mouth{
+    position:absolute;
+    inset:0;
     width:100%;height:100%;
     object-fit:cover;
     display:block;
   }
+  .face .mouth.closed{z-index:1;}                 /* 閉じた口…いつも見えている */
+  .face .mouth.open{z-index:2;opacity:0;}         /* 開いた口…ふだんは透明で見えない */
+  .face.talking-open .mouth.open{opacity:1;}      /* しゃべっている間だけ、開いた口が見える */
+  .face.no-img .mouth{display:none;}
   .face-fallback{
     display:none;
+    position:absolute;inset:0;z-index:3;
     width:100%;height:100%;
     align-items:center;justify-content:center;
     font-family:'Yuji Syuku',serif;
@@ -120,8 +128,6 @@
     background:radial-gradient(circle at 50% 38%, #3a2c1d, #15120c);
   }
   .face.no-img .face-fallback{display:flex;}
-  .face.talk{animation:nod .6s ease;}
-  @keyframes nod{0%,100%{transform:translateY(0)}30%{transform:translateY(6px) rotate(-2deg)}60%{transform:translateY(0) rotate(2deg)}}
   .name-tag{
     margin-top:10px;font-family:'Yuji Syuku',serif;
     font-size:clamp(15px,1.9vw,22px);color:var(--kin-akarui);letter-spacing:.08em;
@@ -327,8 +333,10 @@
     <div class="stage">
       <div class="daibutsu">
         <div class="face" id="face">
-          <img id="faceImg" src="https://raw.githubusercontent.com/byakusen/lgeogelgfe.daibutu_kun/main/daibutu.png" alt="奈良の大仏"
-               onerror="this.style.display='none';this.parentNode.classList.add('no-img');">
+          <img id="faceImg" class="mouth closed" src="https://raw.githubusercontent.com/byakusen/lgeogelgfe.daibutu_kun/main/daibutu.png" alt="奈良の大仏"
+               onerror="this.closest('.face').classList.add('no-img');">
+          <img id="faceImgOpen" class="mouth open" src="https://raw.githubusercontent.com/byakusen/lgeogelgfe.daibutu_kun/main/daibutu2.png" alt="" aria-hidden="true"
+               onerror="this.style.display='none';">
           <span class="face-fallback" id="faceFallback">大<br>仏</span>
         </div>
         <div class="name-tag" id="nameTag">奈良の大仏</div>
@@ -768,6 +776,8 @@ function toVoice(text, who){
        .replace(/わしが/g,"大仏が").replace(/わし、/g,"大仏は、").replace(/わし/g,"大仏");
   // ふさわしい→ふさ大仏い のような誤変換を戻す
   s = s.replace(/ふさ大仏い/g,"ふさわしい");
+  // あらわす(表す)→あら大仏 の誤変換を戻す
+  s = s.replace(/あら大仏/g,"あらわし");
   // 「じゃが」(=だが/ですが)は文中の接続なので先に処理
   s = s.replace(/じゃが/g, who==="shomu" ? "だが" : "ですが");
 
@@ -897,6 +907,7 @@ const SPEAKERS = {
   daibutsu:{
     name:"奈良の大仏",
     img:"https://raw.githubusercontent.com/byakusen/lgeogelgfe.daibutu_kun/main/daibutu.png",
+    imgOpen:"https://raw.githubusercontent.com/byakusen/lgeogelgfe.daibutu_kun/main/daibutu2.png",
     fallback:"大<br>仏",
     greet:"ようこそ、よう参られた。わしが奈良の大仏、盧舎那仏(るしゃなぶつ)じゃ。1300年ちかく、この奈良の地で人々を見守ってきた。下のますに聞きたいことを入力して、リターンを押すか「きく」を押すがよい。わしのことも、わしを造らせた聖武天皇のことも、助けてくれた行基どののことも、なんでも語ってしんぜよう。",
     notFound:[
@@ -910,6 +921,7 @@ const SPEAKERS = {
   shomu:{
     name:"聖武天皇",
     img:"https://raw.githubusercontent.com/byakusen/lgeogelgfe.daibutu_kun/main/shoumu_tennou.png",
+    imgOpen:"https://raw.githubusercontent.com/byakusen/lgeogelgfe.daibutu_kun/main/shoumu2.png",
     fallback:"聖<br>武",
     greet:"朕(ちん)は聖武天皇である。災いの続く世を、仏の力で安らかにしたいと願い、大仏をつくることを決めた。国ごとに国分寺を建て、行基にも力を借りた。下のますに問いを入れて、たずねてみよ。朕のことも、大仏のことも、行基のことも答えよう。",
     notFound:[
@@ -923,6 +935,7 @@ const SPEAKERS = {
   gyoki:{
     name:"行基",
     img:"https://raw.githubusercontent.com/byakusen/lgeogelgfe.daibutu_kun/main/gyouki.png",
+    imgOpen:"https://raw.githubusercontent.com/byakusen/lgeogelgfe.daibutu_kun/main/gyouki2.png",
     fallback:"行<br>基",
     greet:"わたしは行基(ぎょうき)と申します。橋やため池をつくって人々の暮らしを助け、大仏づくりにも力をつくしました。むずかしいことは抜きにして、なんでも聞いてください。わたしのことも、聖武天皇のことも、大仏のことも、やさしくお話ししましょう。",
     notFound:[
@@ -942,14 +955,18 @@ function setSpeaker(who){
   speaker = who;
   const sp = SPEAKERS[who];
   const img = document.getElementById('faceImg');
+  const imgOpen = document.getElementById('faceImgOpen');
   const fb  = document.getElementById('faceFallback');
   const ft  = document.getElementById('face');
+  if(typeof stopMouth==='function') stopMouth();  // 口の動きをいったん止めて、閉じた絵にもどす
   // 画像を差し替え（読み込み失敗時は文字にもどす）
   ft.classList.remove('no-img');
-  img.style.display='';
-  img.onerror=function(){ this.style.display='none'; ft.classList.add('no-img'); };
+  img.style.display=''; imgOpen.style.display='';
+  img.onerror=function(){ ft.classList.add('no-img'); };
+  imgOpen.onerror=function(){ this.style.display='none'; };  // 開口画像だけ失敗→口ぱくなしで継続
   img.src = sp.img;
   img.alt = sp.name;
+  imgOpen.src = sp.imgOpen;
   fb.innerHTML = sp.fallback;
   document.getElementById('nameTag').textContent = sp.name;
   // ボタンの見た目
@@ -983,8 +1000,21 @@ function quizDone(total, right){
 const answerEl = document.getElementById('answer');
 const faceEl = document.getElementById('face');
 let typing=null;
+
+// ===== 口ぱく（信長くんの仕組み）：絵を重ねて opacity を切りかえるだけ。顔は動かさない＝揺れない =====
+let mouthTimer=null;
+function startMouth(){
+  stopMouth();  // 念のため前のうごきを止めてから始める
+  // 0.13秒ごとに、開いた口の絵と閉じた口の絵を切りかえる
+  mouthTimer=setInterval(()=>{ faceEl.classList.toggle('talking-open'); },130);
+}
+function stopMouth(){
+  if(mouthTimer){ clearInterval(mouthTimer); mouthTimer=null; }
+  faceEl.classList.remove('talking-open');  // 最後は口を閉じた絵にもどす
+}
+
 function speak(text){
-  faceEl.classList.remove('talk'); void faceEl.offsetWidth; faceEl.classList.add('talk');
+  startMouth();              // しゃべりはじめ：口を動かす
   if(typing) clearInterval(typing);
   answerEl.innerHTML="";
   // <span class='em'>...</span> をふくむので、文字ごとにHTMLとして組み立てる
@@ -996,7 +1026,7 @@ function speak(text){
   const tokens = tokenize(text);
   let buf="";
   typing=setInterval(()=>{
-    if(i>=tokens.length){clearInterval(typing); cursor.remove(); return;}
+    if(i>=tokens.length){clearInterval(typing); cursor.remove(); stopMouth(); return;}  // しゃべりおわり：口を止める
     buf += tokens[i];
     answerEl.innerHTML = buf + "<span class='cursor'>　</span>";
     i++;
