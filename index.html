@@ -1019,14 +1019,11 @@ function speak(text){
   answerEl.innerHTML="";
   // <span class='em'>...</span> をふくむので、文字ごとにHTMLとして組み立てる
   let i=0;
-  const cursor=document.createElement('span');
-  cursor.className='cursor'; cursor.textContent='　';
-  answerEl.appendChild(cursor);
   // タグを壊さないよう、いったんプレーン文字とタグに分けて少しずつ表示
   const tokens = tokenize(text);
   let buf="";
   typing=setInterval(()=>{
-    if(i>=tokens.length){clearInterval(typing); cursor.remove(); stopMouth(); return;}  // しゃべりおわり：口を止める
+    if(i>=tokens.length){clearInterval(typing); answerEl.innerHTML = buf; stopMouth(); return;}  // しゃべりおわり：カーソルを消して口を止める
     buf += tokens[i];
     answerEl.innerHTML = buf + "<span class='cursor'>　</span>";
     i++;
